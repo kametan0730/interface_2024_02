@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <cstdio>
 
+#define MAX_INTERFACES 8
+
 /*
  * 各プロトコルについてデバッグレベルを設定できます
  *

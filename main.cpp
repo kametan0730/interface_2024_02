@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <termios.h>
 #include <unistd.h>
+#include <sys/epoll.h>
 
 #include "patricia_trie.h"
 #include "config.h"
@@ -188,25 +189,69 @@ int main() {
     tcsetattr(0, TCSANOW, &attr);
     fcntl(0, F_SETFL, O_NONBLOCK); // 標準入力にノンブロッキングの設定
 #endif
-    while (true) {
-#ifdef ENABLE_COMMAND
-        int input = getchar(); // 入力を受け取る
-        if (input != -1) {     // 入力があったら
-            printf("\n");
-            if (input == 'a'){
 
-                dump_nd_table_entry();
-            }
-            else if (input == 'r')
-                dump_ipv6_route(ipv6_fib);
-            else if (input == 'q') break;
+    int epoll_fd;
+    epoll_event ev, ev_ret[MAX_INTERFACES+1];
+
+    // epollの初期化
+    epoll_fd = epoll_create(MAX_INTERFACES+1);
+    if (epoll_fd < 0) {
+        perror("failed to epoll_create");
+        return 1;
+    }
+
+    memset(&ev, 0, sizeof(ev));
+    ev.events = EPOLLIN;
+    ev.data.fd = STDIN_FILENO;
+    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, STDIN_FILENO, &ev) != 0) {
+        perror("failed to epoll_ctl");
+        return 1;
+    }
+
+    for (net_device *dev = net_dev_list; dev; dev = dev->next) {
+        memset(&ev, 0, sizeof(ev));
+        ev.events = EPOLLIN;
+        ev.data.fd = ((net_device_data *)dev->data)->fd;
+        if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, ((net_device_data *)dev->data)->fd, &ev) != 0) {
+            perror("failed to epoll_ctl");
+            return 1;
         }
-#endif
-        // デバイスから通信を受信
-        for (net_device *dev = net_dev_list; dev; dev = dev->next) {
-            dev->ops.poll(dev);
+        dev->ops.poll(dev);
+    }
+
+    // デバイスから通信を受信
+    int nfds;
+    while(true){
+        nfds = epoll_wait(epoll_fd, ev_ret, MAX_INTERFACES+1, -1);
+        if (nfds <= 0) {
+            perror("failed to epoll_wait");
+            return 1;
+        }
+
+        for (int i = 0; i < nfds; i++) {
+            if (ev_ret[i].data.fd == STDIN_FILENO) {
+                int input = getchar(); // 入力を受け取る
+                if (input != -1) {     // 入力があったら
+                    printf("\n");
+                    if (input == 'a') {
+                        dump_nd_table_entry();
+                    } else if (input == 'r')
+                        dump_ipv6_route(ipv6_fib);
+                    else if (input == 'q')
+                        goto exit_loop;
+                }
+            }
+
+            for (net_device *dev = net_dev_list; dev; dev = dev->next) {
+                if (ev_ret[i].data.fd == ((net_device_data *)dev->data)->fd) {
+                    dev->ops.poll(dev);
+                }
+            }
         }
     }
+
+exit_loop:
+
     printf("Goodbye!\n");
     return 0;
 }
