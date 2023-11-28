@@ -2,6 +2,7 @@
 #define CURO_ND_H
 
 #include <cstdint>
+
 #include "ipv6.h"
 
 #define ND_TABLE_SIZE 1111
@@ -15,11 +16,12 @@ struct nd_table_entry {
     nd_table_entry *next;
 };
 
+void init_nd_table();
+
 void add_nd_table_entry(net_device *dev, uint8_t *mac_addr, in6_addr v6_addr);
 
 nd_table_entry *search_nd_table_entry(in6_addr v6_addr);
 
 void dump_nd_table_entry();
-
 
 #endif

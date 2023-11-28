@@ -172,6 +172,8 @@ int main() {
         exit(EXIT_FAILURE);
     }
 
+    init_nd_table();
+
     in6_addr root_addr;
     memset(&root_addr, 0x00, sizeof(root_addr));
     ipv6_fib = create_patricia_node(root_addr, 0, false, nullptr);
