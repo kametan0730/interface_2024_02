@@ -7,18 +7,18 @@
 
 #if DEBUG_TRIE > 0
 #define LOG_TRIE(...)                                                                                                                                                                                  \
-    printf("[TRIE] ");                                                                                                                                                                                 \
-    printf(__VA_ARGS__)
+  printf("[TRIE] ");                                                                                                                                                                                   \
+  printf(__VA_ARGS__)
 #else
 #define LOG_TRIE(...)
 #endif
 
 struct patricia_node {
-    patricia_node *left, *right, *parent;
-    in6_addr address; // IPv6アドレス
-    int bits_len;     // このノードで比較するビットの位置
-    int is_prefix;    // このノードがプレフィックスを表すかどうか
-    void *data;
+  patricia_node *left, *right, *parent;
+  in6_addr address; // IPv6アドレス
+  int bits_len;     // このノードで比較するビットの位置
+  int is_prefix;    // このノードがプレフィックスを表すかどうか
+  void *data;
 };
 
 int in6_addr_get_bit(in6_addr address, int bit);

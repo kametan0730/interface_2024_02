@@ -20,4 +20,4 @@ const char *mac_addr_toa(const uint8_t *addr);
 
 uint16_t checksum_16(uint16_t *buffer, size_t count, uint16_t start = 0);
 
-#endif //CURO_UTILS_H
+#endif // CURO_UTILS_H
