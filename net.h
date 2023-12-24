@@ -23,8 +23,7 @@ struct net_device {
   uint8_t data[];
 };
 
-extern net_device *net_dev_list; // net_deviceの連結リストの先頭
-
-// #define FOR_EACH_NET_DEV(dev) for (dev = net_dev_list; dev; dev = dev->next)
+/* net_deviceの連結リストの先頭 */
+extern net_device *net_dev_list;
 
 #endif // CURO_NET_H

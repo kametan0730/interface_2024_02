@@ -152,8 +152,91 @@ void ipv6_input(net_device *input_dev, uint8_t *buffer, ssize_t len) {
     ipv6_output_to_next_hop(route->next_hop, ipv6_fwd_mybuf); // next hopに送信
     return;
   }
+}
 
-  // ルーティングのための処理
+// IPv6アドレスが、ネットワーク内の物か調べる
+int in6_is_in_network(in6_addr address, in6_addr prefix,
+                      int prefix_len) {
+
+  // 各ビットを比較してネットワーク内かどうかを確認
+  for (int i = 0; i < prefix_len; i++) {
+    int byte_index = i / 8;
+    int bit_index = i % 8;
+
+    if ((address.s6_addr[byte_index] &
+         (1 << (7 - bit_index))) !=
+        (prefix.s6_addr[byte_index] &
+         (1 << (7 - bit_index)))) {
+      return 0; // ネットワーク外
+    }
+  }
+
+  return 1; // ネットワーク内
+}
+
+void ipv6_encap_output(in6_addr dst_addr,
+                       in6_addr src_addr, my_buf *buffer,
+                       uint8_t next_hdr_num) {
+
+  // 連結リストをたどってIPヘッダで必要なIPパケットの全長を算出する
+  uint16_t payload_len = 0;
+  my_buf *current = buffer;
+  while (current != nullptr) {
+    payload_len += current->len;
+    current = current->next;
+  }
+
+  // IPv6ヘッダ用のバッファを確保する
+  my_buf *v6h_mybuf =
+      my_buf::create(sizeof(ipv6_header));
+  buffer->add_header(
+      v6h_mybuf); // 包んで送るデータにヘッダとして連結する
+
+  // IPヘッダの各項目を設定
+  ipv6_header *v6h_buf =
+      (ipv6_header *)v6h_mybuf->buffer;
+  v6h_buf->ver_tc_fl = 0x60;
+  v6h_buf->payload_len = htons(payload_len);
+  v6h_buf->next_hdr = next_hdr_num;
+  v6h_buf->hop_limit = 0xff;
+  v6h_buf->src_addr = src_addr;
+  v6h_buf->dst_addr = dst_addr;
+
+  // ルーティング/フォワーディングが実装されてないとき用
+  for (net_device *dev = net_dev_list; dev;
+       dev = dev->next) {
+    if (dev->ipv6_dev == nullptr)
+      continue;
+    // 宛先アドレスと同じネットワークを持ったデバイスを探す
+    if (in6_is_in_network(dst_addr,
+                          dev->ipv6_dev->address,
+                          dev->ipv6_dev->prefix_len)) {
+      ipv6_output_to_host(dev, dst_addr,
+                          dev->ipv6_dev->address,
+                          v6h_mybuf);
+      return;
+    }
+  }
+
+  return;
+
+  patricia_node *res =
+      patricia_trie_search(ipv6_fib, dst_addr);
+  if (res != nullptr and res->data != nullptr) {
+    ipv6_route_entry *route_entry =
+        (ipv6_route_entry *)res->data;
+    if (route_entry->type ==
+        ipv6_route_type::connected) {
+      ipv6_output_to_host(
+          route_entry->dev, dst_addr,
+          route_entry->dev->ipv6_dev->address,
+          v6h_mybuf);
+    } else if (route_entry->type ==
+               ipv6_route_type::network) {
+      ipv6_output_to_next_hop(route_entry->next_hop,
+                              v6h_mybuf);
+    }
+  }
 }
 
 void ipv6_encap_dev_output(net_device *output_dev, const uint8_t *dst_mac_addr, in6_addr dst_addr, my_buf *buffer, uint8_t next_hdr_num) {
@@ -256,30 +339,4 @@ void ipv6_output_to_next_hop(in6_addr dst_addr, my_buf *buffer) {
     LOG_IPV6("found nd entry to next hop!\n");
     ethernet_encapsulate_output(entry->dev, entry->mac_addr, buffer, ETHER_TYPE_IPV6);
   }
-}
-
-void ipv6_encap_output(in6_addr dst_addr, in6_addr src_addr, my_buf *buffer, uint8_t next_hdr_num) {
-
-  // 連結リストをたどってIPヘッダで必要なIPパケットの全長を算出する
-  uint16_t payload_len = 0;
-  my_buf *current = buffer;
-  while (current != nullptr) {
-    payload_len += current->len;
-    current = current->next;
-  }
-
-  // IPv6ヘッダ用のバッファを確保する
-  my_buf *v6h_mybuf = my_buf::create(sizeof(ipv6_header));
-  buffer->add_header(v6h_mybuf); // 包んで送るデータにヘッダとして連結する
-
-  // IPヘッダの各項目を設定
-  ipv6_header *v6h_buf = (ipv6_header *)v6h_mybuf->buffer;
-  v6h_buf->ver_tc_fl = 0x60;
-  v6h_buf->payload_len = htons(payload_len);
-  v6h_buf->next_hdr = next_hdr_num;
-  v6h_buf->hop_limit = 0xff;
-  v6h_buf->src_addr = src_addr;
-  v6h_buf->dst_addr = dst_addr;
-
-  ipv6_output_to_next_hop(dst_addr, v6h_mybuf);
 }

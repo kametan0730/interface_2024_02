@@ -48,6 +48,10 @@ net_device *get_net_device_by_name(const char *name) {
 /* 設定する */
 void configure() {
 
+  in6_addr root_addr;
+  memset(&root_addr, 0x00, sizeof(root_addr));
+  ipv6_fib = create_patricia_node(root_addr, 0, false, nullptr);
+
   in6_addr addr6_to_host1;
   inet_pton(AF_INET6, "2001:db8:0:1001::1", &addr6_to_host1);
 
@@ -93,7 +97,7 @@ int main() {
 
   for (ifaddrs *tmp = addrs; tmp; tmp = tmp->ifa_next) {
     if (tmp->ifa_addr && tmp->ifa_addr->sa_family == AF_PACKET) {
-      // ioctlでコントロールするインターフェースを設定
+
       memset(&ifr, 0, sizeof(ifr));
       strcpy(ifr.ifr_name, tmp->ifa_name);
 
@@ -103,7 +107,7 @@ int main() {
         continue;
       }
 
-      // Socketをオープン
+      // ソケットをオープン
       int sock = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
       if (sock == -1) {
         LOG_ERROR("failed open socket: %s\n", strerror(errno));
@@ -117,7 +121,7 @@ int main() {
         exit(EXIT_FAILURE);
       }
 
-      // socketにインターフェースをbindする
+      // ソケットにインターフェースをbindする
       sockaddr_ll addr{};
       memset(&addr, 0x00, sizeof(addr));
       addr.sll_family = AF_PACKET;
@@ -140,8 +144,10 @@ int main() {
 
       // net_deviceの領域と、net_device_dataの領域を確保する
       net_device *dev = (net_device *)calloc(1, sizeof(net_device) + sizeof(net_device_data));
-      dev->ops.transmit = net_device_transmit; // 送信用の関数を設定
-      dev->ops.poll = net_device_poll;         // 受信用の関数を設定
+      // 送信用の関数を設定
+      dev->ops.transmit = net_device_transmit;
+      // 受信用の関数を設定
+      dev->ops.poll = net_device_poll;
 
       // net_deviceにインターフェース名をセット
       strcpy(dev->name, tmp->ifa_name);
@@ -156,12 +162,6 @@ int main() {
       next = net_dev_list;
       net_dev_list = dev;
       dev->next = next;
-
-      /* ノンブロッキングに設定 */
-      // File descriptorのflagを取得
-      int val = fcntl(sock, F_GETFL, 0);
-      // Non blockingのビットをセット
-      fcntl(sock, F_SETFL, val | O_NONBLOCK);
     }
   }
   // 確保されていたメモリを解放
@@ -190,7 +190,6 @@ int main() {
   attr.c_cc[VTIME] = 0;
   attr.c_cc[VMIN] = 1;
   tcsetattr(0, TCSANOW, &attr);
-  fcntl(0, F_SETFL, O_NONBLOCK); // 標準入力にノンブロッキングの設定
 #endif
 
   int epoll_fd;
@@ -219,7 +218,6 @@ int main() {
       perror("failed to epoll_ctl");
       return 1;
     }
-    dev->ops.poll(dev);
   }
 
   // デバイスから通信を受信
@@ -259,22 +257,14 @@ exit_loop:
   return 0;
 }
 
-/**
- * ネットデバイスの送信処理
- * @param dev 送信に使用するデバイス
- * @param buffer 送信するバッファ
- * @param len バッファの長さ
- */
+/* ネットデバイスの送信処理 */
 int net_device_transmit(struct net_device *dev, uint8_t *buffer, size_t len) {
   // Socketを通して送信
   send(((net_device_data *)dev->data)->fd, buffer, len, 0);
   return 0;
 }
 
-/**
- * ネットワークデバイスの受信処理
- * @param dev 受信を試みるデバイス
- */
+/* ネットワークデバイスの受信処理 */
 int net_device_poll(net_device *dev) {
   uint8_t buffer[1550];
   // Socketから受信

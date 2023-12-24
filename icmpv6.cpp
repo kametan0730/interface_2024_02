@@ -9,13 +9,7 @@
 #include "utils.h"
 #include <cstring>
 
-/**
- * ICMPv6パケットの受信処理
- * @param source
- * @param dstination
- * @param buffer
- * @param len
- */
+/* ICMPv6パケットの受信処理 */
 void icmpv6_input(ipv6_device *v6dev, in6_addr source, in6_addr dstination, void *buffer, size_t len) {
   icmpv6_hdr *icmp_pkt = (icmpv6_hdr *)buffer;
   LOG_ICMPV6("received icmpv6 code=%d, type=%d\n", icmp_pkt->code, icmp_pkt->type);
@@ -35,7 +29,6 @@ void icmpv6_input(ipv6_device *v6dev, in6_addr source, in6_addr dstination, void
 
     if (memcmp(&ns_pkt->target_addr, &v6dev->address, 16) == 0) {
       LOG_ICMPV6("ns target match! %s\n", target_addr_str);
-
       LOG_ICMPV6("option mac address! %s\n", mac_addr_toa(ns_pkt->opt_mac_addr));
 
       update_nd_table_entry(v6dev->net_dev, ns_pkt->opt_mac_addr, source);
@@ -80,7 +73,7 @@ void icmpv6_input(ipv6_device *v6dev, in6_addr source, in6_addr dstination, void
     char target_addr_str[INET6_ADDRSTRLEN];
     inet_ntop(AF_INET6, &napkt->target_addr, target_addr_str, INET6_ADDRSTRLEN);
 
-    LOG_ICMPV6("NA %s => %s\n", target_addr_str, mac_addr_toa(napkt->opt_mac_addr));
+    LOG_ICMPV6("updating nd entry %s => %s\n", target_addr_str, mac_addr_toa(napkt->opt_mac_addr));
 
     update_nd_table_entry(v6dev->net_dev, napkt->opt_mac_addr, napkt->target_addr);
 
@@ -88,18 +81,18 @@ void icmpv6_input(ipv6_device *v6dev, in6_addr source, in6_addr dstination, void
 
   case ICMPV6_TYPE_ECHO_REQUEST: {
     if (len < sizeof(icmpv6_echo)) {
-      LOG_ICMPV6("Received echo request packet too short\n");
+      LOG_ICMPV6("received echo request packet too short\n");
       return;
     }
 
     icmpv6_echo *echo_packet = (icmpv6_echo *)buffer;
 
-    LOG_ICMPV6("Received echo request id=%d seq=%d\n", ntohs(echo_packet->id), ntohs(echo_packet->seq));
+    LOG_ICMPV6("received echo request id=%d seq=%d\n", ntohs(echo_packet->id), ntohs(echo_packet->seq));
 
     uint32_t data_len = len - sizeof(icmpv6_echo);
 
-    if (data_len >= 200) { // TODO modify
-      LOG_ICMPV6("Echo size is too large\n");
+    if (data_len > 256) {
+      LOG_ICMPV6("echo size is too large\n");
       return;
     }
 
@@ -168,7 +161,7 @@ void send_ns_packet(net_device *dev, in6_addr target_addr) {
 
   ns_pkt->hdr.checksum = checksum_16((uint16_t *)ns_pkt, sizeof(icmpv6_na), psum);
 
-  LOG_ICMPV6("Sending NS...\n");
+  LOG_ICMPV6("sending NS...\n");
 
   ipv6_encap_dev_mcast_output(dev, mcast_addr, ns_buf, IPV6_PROTOCOL_NUM_ICMP);
 }

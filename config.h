@@ -19,10 +19,8 @@
 #define DEBUG_ICMPV6 1
 
 // #define ENABLE_MYBUF_NON_COPY_MODE // パケット転送時にバッファのコピーを削減するか
-#define ENABLE_NAT        // NATを有効にするか
-#define ENABLE_ICMP_ERROR // ICMPエラーを送信するか
+
 #define ENABLE_COMMAND    // 対話的なコマンドを有効化するか
-#define ENABLE_IPV6       // IPv6を有効にするか
 
 struct net_device;
 struct in6_addr;

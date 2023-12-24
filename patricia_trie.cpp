@@ -29,13 +29,12 @@ int in6_addr_clear_bit(in6_addr *address, int bit) {
   address->s6_addr[byte_index] &= ~(1 << bit_index);
 }
 
-// 2つのアドレスを比べ、ビット列のマッチしてる長さを返す
+// 2つのアドレスを比べてビット列のマッチしてる長さを返す
 int in6_addr_get_match_bits_len(in6_addr addr1, in6_addr addr2, int end_bit) {
 
   int start_bit = 0;
   assert(start_bit <= end_bit);
   assert(end_bit < 128);
-  assert(start_bit >= 0);
 
   int count = 0;
   for (int i = start_bit; i <= end_bit; i++) {
@@ -74,15 +73,11 @@ patricia_node *create_patricia_node(in6_addr address, int bits_len, int is_prefi
   char addr_str[INET6_ADDRSTRLEN];
   inet_ntop(AF_INET6, &address, addr_str, sizeof(addr_str));
 
-  LOG_TRIE("Created patricia node %s (%d)\n", addr_str, bits_len);
-
   return node;
 }
 
 // トライ木からIPアドレスを検索する
 patricia_node *patricia_trie_search(patricia_node *root, in6_addr address) {
-
-  LOG_TRIE("Entering patricia_trie_search\n");
 
   int current_bits_len = 0;
   patricia_node *current_node = root;
@@ -99,11 +94,6 @@ patricia_node *patricia_trie_search(patricia_node *root, in6_addr address) {
 
     int match_len = in6_addr_get_match_bits_len(address, next_node->address, current_bits_len + next_node->bits_len - 1);
 
-    LOG_TRIE("Compare1: %s\n", in6_addr_to_bits_string(address, 0, 127));
-    LOG_TRIE("Compare2: %s\n", in6_addr_to_bits_string(next_node->address, 0, 127));
-
-    LOG_TRIE("Match %d / %d current: %d\n", match_len, current_bits_len + next_node->bits_len, current_bits_len);
-
     if (next_node->is_prefix) {
       last_matched = next_node;
     }
@@ -116,15 +106,11 @@ patricia_node *patricia_trie_search(patricia_node *root, in6_addr address) {
     current_bits_len += next_node->bits_len;
   }
 
-  LOG_TRIE("Exited patricia_trie_search\n");
-
   return last_matched;
 }
 
 // トライ木にエントリを追加する
 patricia_node *patricia_trie_insert(patricia_node *root, in6_addr address, int prefix_len, void *data_ptr) {
-
-  LOG_TRIE("Entering patricia_trie_insert\n");
 
   int current_bits_len = 0;
   patricia_node *current_node = root; // ループ内で注目するノード
@@ -135,8 +121,6 @@ patricia_node *patricia_trie_insert(patricia_node *root, in6_addr address, int p
 
   char addr_str[INET6_ADDRSTRLEN];
   inet_ntop(AF_INET6, &address, addr_str, sizeof(addr_str));
-
-  LOG_TRIE("Inserting %s/%d\n", addr_str, prefix_len);
 
   // 枝を辿る
   while (true) { // ループ内では次に進むノードを決定する
@@ -159,18 +143,13 @@ patricia_node *patricia_trie_insert(patricia_node *root, in6_addr address, int p
 
     int match_len = in6_addr_get_match_bits_len(address, next_node->address, current_bits_len + next_node->bits_len - 1);
 
-    LOG_TRIE("Match len = %d & Next bits prefix = %d (%d + %d)\n", match_len, current_bits_len + next_node->bits_len, current_bits_len, next_node->bits_len);
-
     if (match_len == current_bits_len + next_node->bits_len) { // 次のノードと全マッチ
-      current_bits_len += next_node->bits_len;                 // next? current?
+      current_bits_len += next_node->bits_len;
       current_node = next_node;
 
-      // ここで、目標のノードかの判定がいる?
       if (current_bits_len == prefix_len) { // 目標だった時
-        LOG_TRIE("TODO: implementation\n");
         next_node->is_prefix = true;
         next_node->data = data_ptr;
-        // TODO: Set data
         break;
       }
 
@@ -178,7 +157,7 @@ patricia_node *patricia_trie_insert(patricia_node *root, in6_addr address, int p
 
       // Current-Intermediate-Nextに分割
       int im_node_bits_len = match_len - current_bits_len;
-      LOG_TRIE("Intermediate node bits len = %d\n", match_len);
+
       patricia_node *im_node = create_patricia_node(in6_addr_clear_prefix(address, match_len), im_node_bits_len, false, current_node); // 新しく作る
 
       if (current_node->left == next_node) { // Current-Intermediateをつなぎなおす
@@ -193,10 +172,8 @@ patricia_node *patricia_trie_insert(patricia_node *root, in6_addr address, int p
       LOG_TRIE("Separated %d & %d\n", im_node_bits_len, next_node->bits_len);
 
       if (prefix_len == current_bits_len + match_len) {
-        LOG_TRIE("TODO: Implementation 2\n");
         next_node->is_prefix = true;
         next_node->data = data_ptr;
-        // TODO: Set data
         break;
       }
 
@@ -213,8 +190,6 @@ patricia_node *patricia_trie_insert(patricia_node *root, in6_addr address, int p
       break;
     }
   }
-
-  LOG_TRIE("Exited patricia_trie_insert\n");
 
   return root;
 }

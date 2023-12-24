@@ -16,21 +16,14 @@ struct my_buf {
 #endif
   uint8_t buffer[]; // バッファ
 
-  /**
-   * my_bufのメモリ確保
-   * @param len 確保するバッファ長
-   */
+  /* my_bufのメモリ確保 */
   static my_buf *create(uint32_t len) {
     my_buf *buf = (my_buf *)calloc(1, sizeof(my_buf) + len);
     buf->len = len;
     return buf;
   }
 
-  /**
-   * my_bufのメモリ開放
-   * @param buf
-   * @param is_recursive
-   */
+  /*  my_bufのメモリ開放 */
   static void my_buf_free(my_buf *buf, bool is_recursive = false) {
     if (!is_recursive) {
       free(buf);
@@ -45,9 +38,7 @@ struct my_buf {
     }
   }
 
-  /**
-   * 連結リストの最後の項目を返す
-   */
+  /* 連結リストの最後の項目を返す */
   my_buf *get_tail() {
     my_buf *current = this;
     while (current->next != nullptr) {
@@ -56,6 +47,7 @@ struct my_buf {
     return current;
   }
 
+  /* ヘッダをつける */
   void add_header(my_buf *buf) {
     this->previous = buf;
     buf->next = this;
